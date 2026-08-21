@@ -1,0 +1,64 @@
+"""
+MCP Server — exposes our tools (starting with calculator) to any MCP client.
+"""
+
+import sys
+from pathlib import Path
+
+# Make sure the project root is on Python's import path, so "app.xxx" imports work
+# no matter how this file is launched (directly, via mcp dev, etc.)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from mcp.server import MCPServer
+from app.mcp_server.tools import calculator
+
+# Create the server instance. The name shows up in MCP clients/inspectors.
+mcp = MCPServer("MCP Agent Server")
+
+# Create the server instance. The name shows up in MCP clients/inspectors.
+mcp = MCPServer("MCP Agent Server")
+
+
+# Each @mcp.tool() decorator turns a plain function into an MCP tool.
+# The SDK reads the function's type hints and docstring to auto-generate
+# the schema an LLM will see (name, description, parameters) — no manual
+# JSON schema writing needed.
+
+@mcp.tool()
+def add(a: float, b: float) -> float:
+    """Add two numbers together."""
+    return calculator.add(a, b)
+
+
+@mcp.tool()
+def subtract(a: float, b: float) -> float:
+    """Subtract b from a."""
+    return calculator.subtract(a, b)
+
+
+@mcp.tool()
+def multiply(a: float, b: float) -> float:
+    """Multiply two numbers."""
+    return calculator.multiply(a, b)
+
+
+@mcp.tool()
+def divide(a: float, b: float) -> float:
+    """Divide a by b."""
+    return calculator.divide(a, b)
+
+
+@mcp.tool()
+def percentage(part: float, whole: float) -> float:
+    """Calculate what percentage 'part' is of 'whole'."""
+    return calculator.percentage(part, whole)
+
+
+@mcp.tool()
+def average(numbers: list[float]) -> float:
+    """Calculate the average of a list of numbers."""
+    return calculator.average(numbers)
+
+
+if __name__ == "__main__":
+    mcp.run()
