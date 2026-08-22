@@ -15,7 +15,7 @@ from app.agent.agent import run_agent
 
 
 async def main():
-    question = "Add 15 and 27, then tell me what percentage that result is of 500."
+    question = "Find the top 5 Python AI repositories on GitHub and calculate their average star count."
     print(f"User: {question}\n")
 
     result = await run_agent(question)

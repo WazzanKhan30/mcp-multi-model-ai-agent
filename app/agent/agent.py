@@ -13,7 +13,7 @@ from app.llm.groq_provider import GroqProvider
 
 SERVER_SCRIPT = str(Path(__file__).resolve().parents[1] / "mcp_server" / "server.py")
 
-MAX_TOOL_ROUNDS = 6  # safety limit so a confused model can't loop forever
+MAX_TOOL_ROUNDS = 10  # safety limit so a confused model can't loop forever  # safety limit so a confused model can't loop forever
 
 
 async def run_agent(user_message: str) -> dict:
