@@ -49,9 +49,21 @@ def divide(a: float, b: float) -> float:
 
 
 @mcp.tool()
-def percentage(part: float, whole: float) -> float:
-    """Calculate what percentage 'part' is of 'whole'."""
-    return calculator.percentage(part, whole)
+def percentage_of(percent: float, whole: float) -> float:
+    """Calculate a percentage of a number. E.g. 25% of 8000 = percent=25, whole=8000 -> 2000."""
+    return calculator.percentage_of(percent, whole)
+
+
+@mcp.tool()
+def percentage_of(percent: float, whole: float) -> float:
+    """Calculate a percentage of a number. E.g. 25% of 8000 = percent=25, whole=8000 -> 2000."""
+    return calculator.percentage_of(percent, whole)
+
+
+@mcp.tool()
+def what_percentage(part: float, whole: float) -> float:
+    """Calculate what percentage 'part' is of 'whole'. E.g. 25 is what % of 8000 -> part=25, whole=8000 -> 0.3125."""
+    return calculator.what_percentage(part, whole)
 
 
 @mcp.tool()
