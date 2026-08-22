@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from mcp.server import MCPServer
-from app.mcp_server.tools import calculator, weather
+from app.mcp_server.tools import calculator, weather, github
 
 # Create the server instance. The name shows up in MCP clients/inspectors.
 mcp = MCPServer("MCP Agent Server")
@@ -72,6 +72,18 @@ def average(numbers: list[float]) -> float:
 def get_weather(city: str) -> dict:
     """Get the current weather (temperature, wind, condition) for a given city."""
     return weather.get_current_weather(city)
+
+
+@mcp.tool()
+def search_github_repos(query: str, limit: int = 5) -> list[dict]:
+    """Search GitHub repositories by keyword, sorted by stars (most popular first)."""
+    return github.search_repositories(query, limit)
+
+
+@mcp.tool()
+def get_github_repo_stats(owner: str, repo: str) -> dict:
+    """Get statistics (stars, forks, open issues) for a specific GitHub repository."""
+    return github.get_repository_stats(owner, repo)
 
 
 if __name__ == "__main__":
