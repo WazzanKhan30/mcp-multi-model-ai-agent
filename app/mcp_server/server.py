@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from mcp.server import MCPServer
-from app.mcp_server.tools import calculator
+from app.mcp_server.tools import calculator, weather
 
 # Create the server instance. The name shows up in MCP clients/inspectors.
 mcp = MCPServer("MCP Agent Server")
@@ -48,10 +48,7 @@ def divide(a: float, b: float) -> float:
     return calculator.divide(a, b)
 
 
-@mcp.tool()
-def percentage_of(percent: float, whole: float) -> float:
-    """Calculate a percentage of a number. E.g. 25% of 8000 = percent=25, whole=8000 -> 2000."""
-    return calculator.percentage_of(percent, whole)
+
 
 
 @mcp.tool()
@@ -70,6 +67,11 @@ def what_percentage(part: float, whole: float) -> float:
 def average(numbers: list[float]) -> float:
     """Calculate the average of a list of numbers."""
     return calculator.average(numbers)
+
+@mcp.tool()
+def get_weather(city: str) -> dict:
+    """Get the current weather (temperature, wind, condition) for a given city."""
+    return weather.get_current_weather(city)
 
 
 if __name__ == "__main__":
