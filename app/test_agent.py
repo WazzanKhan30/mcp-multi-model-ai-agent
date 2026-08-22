@@ -15,7 +15,7 @@ from app.agent.agent import run_agent
 
 
 async def main():
-    question = "What is 25% of 8000?"
+    question = "Add 15 and 27, then tell me what percentage that result is of 500."
     print(f"User: {question}\n")
 
     result = await run_agent(question)
