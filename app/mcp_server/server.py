@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from mcp.server import MCPServer
 from app.mcp_server.tools import calculator, weather, github
+from app.database import queries as db_queries
 
 # Create the server instance. The name shows up in MCP clients/inspectors.
 mcp = MCPServer("MCP Agent Server")
@@ -84,6 +85,30 @@ def search_github_repos(query: str, limit: int = 5) -> list[dict]:
 def get_github_repo_stats(owner: str, repo: str) -> dict:
     """Get statistics (stars, forks, open issues) for a specific GitHub repository."""
     return github.get_repository_stats(owner, repo)
+
+
+@mcp.tool()
+def list_all_books() -> list[dict]:
+    """List all books in the library database, sorted by rating."""
+    return db_queries.list_all_books()
+
+
+@mcp.tool()
+def search_books_by_genre(genre: str) -> list[dict]:
+    """Search the library database for books in a specific genre."""
+    return db_queries.search_books_by_genre(genre)
+
+
+@mcp.tool()
+def search_books_by_author(author: str) -> list[dict]:
+    """Search the library database for books by a specific author."""
+    return db_queries.search_books_by_author(author)
+
+
+@mcp.tool()
+def get_top_rated_books(limit: int = 5) -> list[dict]:
+    """Get the top-rated books from the library database."""
+    return db_queries.get_top_rated_books(limit)
 
 
 if __name__ == "__main__":
