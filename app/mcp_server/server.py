@@ -9,8 +9,13 @@ from pathlib import Path
 # no matter how this file is launched (directly, via mcp dev, etc.)
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from dotenv import load_dotenv
+load_dotenv()
+
+
+
 from mcp.server import MCPServer
-from app.mcp_server.tools import calculator, weather, github
+from app.mcp_server.tools import calculator, weather, github, web_search
 from app.database import queries as db_queries
 
 # Create the server instance. The name shows up in MCP clients/inspectors.
@@ -109,6 +114,11 @@ def search_books_by_author(author: str) -> list[dict]:
 def get_top_rated_books(limit: int = 5) -> list[dict]:
     """Get the top-rated books from the library database."""
     return db_queries.get_top_rated_books(limit)
+
+@mcp.tool()
+def search_web(query: str, max_results: int = 5) -> list[dict]:
+    """Search the web for current information on a topic. Returns titles, URLs, and content snippets."""
+    return web_search.search_web(query, max_results)
 
 
 if __name__ == "__main__":
