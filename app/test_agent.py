@@ -15,7 +15,7 @@ from app.agent.agent import run_agent
 
 
 async def main():
-    question = "What fantasy books do you have, and what's the average rating of them?"
+    question = "Use your divide tool to calculate 10 divided by 0. You must use the tool, do not answer from memory."
     print(f"User: {question}\n")
 
     result = await run_agent(question)
