@@ -3,15 +3,23 @@ The core agent loop: takes a user message, talks to the LLM + MCP tools,
 chains multiple tool calls if needed, and returns a final answer.
 """
 
+import os
 import sys
+import time
 from pathlib import Path
 
 from mcp import Client, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-import os
 from app.llm.groq_provider import GroqProvider
 from app.llm.openrouter_provider import OpenRouterProvider
+from app.logger import get_logger
+
+logger = get_logger("agent")
+
+SERVER_SCRIPT = str(Path(__file__).resolve().parents[1] / "mcp_server" / "server.py")
+
+MAX_TOOL_ROUNDS = 10  # safety limit so a confused model can't loop forever
 
 
 def get_llm_provider():
@@ -21,16 +29,16 @@ def get_llm_provider():
         return OpenRouterProvider()
     return GroqProvider()  # default
 
-SERVER_SCRIPT = str(Path(__file__).resolve().parents[1] / "mcp_server" / "server.py")
-
-MAX_TOOL_ROUNDS = 10  # safety limit so a confused model can't loop forever  # safety limit so a confused model can't loop forever
-
 
 async def run_agent(user_message: str) -> dict:
     """
     Runs one full agent turn. Returns a dict with the final answer text
     and a log of every tool call made along the way (for UI display later).
     """
+    provider_name = os.environ.get("LLM_PROVIDER", "groq").lower()
+    logger.info(f"New request | provider={provider_name} | message={user_message!r}")
+
+    request_start = time.monotonic()
     server_params = StdioServerParameters(command=sys.executable, args=[SERVER_SCRIPT])
     tool_call_log = []
 
@@ -40,27 +48,58 @@ async def run_agent(user_message: str) -> dict:
 
         messages = [{"role": "user", "content": user_message}]
 
-        for _ in range(MAX_TOOL_ROUNDS):
-            decision = provider.generate(messages, tools_result.tools)
+        for round_num in range(MAX_TOOL_ROUNDS):
+            # --- Call the LLM, with graceful error handling ---
+            try:
+                decision = provider.generate(messages, tools_result.tools)
+            except Exception as e:
+                logger.error(
+                    f"LLM call failed | provider={provider_name} | round={round_num} | error={e}"
+                )
+                return {
+                    "answer": (
+                        "I couldn't complete this request because the AI model provider "
+                        "had an issue (this is often temporary — please try again). "
+                        f"Technical detail: {type(e).__name__}."
+                    ),
+                    "tool_calls": tool_call_log,
+                }
 
+            # --- If the LLM is done, return the final answer ---
             if decision["type"] == "text":
+                elapsed = time.monotonic() - request_start
+                logger.info(
+                    f"Request complete | rounds={round_num} | tool_calls={len(tool_call_log)} "
+                    f"| total_time={elapsed:.2f}s"
+                )
                 return {
                     "answer": decision["text"],
                     "tool_calls": tool_call_log,
                 }
 
-            # It's a tool call: execute via the real MCP client
+            # --- Otherwise, execute the requested tool call via MCP ---
             tool_name = decision["name"]
             tool_args = decision["arguments"]
+            tool_start = time.monotonic()
+
+            logger.info(f"Tool call requested | tool={tool_name} | args={tool_args}")
 
             try:
                 result = await mcp_client.call_tool(tool_name, tool_args)
+                tool_elapsed = time.monotonic() - tool_start
                 if result.is_error:
                     tool_output = f"Error: {result.content[0].text}"
+                    logger.warning(
+                        f"Tool call failed | tool={tool_name} | time={tool_elapsed:.2f}s | {tool_output}"
+                    )
                 else:
                     tool_output = str(result.structured_content)
+                    logger.info(
+                        f"Tool call succeeded | tool={tool_name} | time={tool_elapsed:.2f}s"
+                    )
             except Exception as e:
                 tool_output = f"Error calling tool: {e}"
+                logger.error(f"Tool call exception | tool={tool_name} | error={e}")
 
             tool_call_log.append(
                 {"tool": tool_name, "arguments": tool_args, "result": tool_output}
@@ -78,6 +117,8 @@ async def run_agent(user_message: str) -> dict:
             )
 
         # Safety fallback if the model never stops calling tools
+        elapsed = time.monotonic() - request_start
+        logger.warning(f"Max tool rounds reached | tool_calls={len(tool_call_log)} | total_time={elapsed:.2f}s")
         return {
             "answer": "I wasn't able to complete this request within the allowed number of tool calls.",
             "tool_calls": tool_call_log,
