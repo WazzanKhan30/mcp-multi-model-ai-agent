@@ -9,7 +9,17 @@ from pathlib import Path
 from mcp import Client, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+import os
 from app.llm.groq_provider import GroqProvider
+from app.llm.openrouter_provider import OpenRouterProvider
+
+
+def get_llm_provider():
+    """Select the LLM provider based on the LLM_PROVIDER env variable."""
+    provider_name = os.environ.get("LLM_PROVIDER", "groq").lower()
+    if provider_name == "openrouter":
+        return OpenRouterProvider()
+    return GroqProvider()  # default
 
 SERVER_SCRIPT = str(Path(__file__).resolve().parents[1] / "mcp_server" / "server.py")
 
@@ -26,7 +36,7 @@ async def run_agent(user_message: str) -> dict:
 
     async with Client(stdio_client(server_params)) as mcp_client:
         tools_result = await mcp_client.list_tools()
-        provider = GroqProvider()
+        provider = get_llm_provider()
 
         messages = [{"role": "user", "content": user_message}]
 
