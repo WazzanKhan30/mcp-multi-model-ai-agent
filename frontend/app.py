@@ -1,6 +1,6 @@
 """
 Streamlit chat interface for the MCP AI Agent.
-Shows the active model, available tools, and per-response tool usage.
+Now with login/registration, per-user sessions, and tool-usage visibility.
 """
 
 import asyncio
@@ -17,21 +17,58 @@ load_dotenv()
 from mcp import Client, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from app.agent.agent import run_agent, SERVER_SCRIPT
+from app.database import auth
 
 st.set_page_config(page_title="MCP AI Agent", page_icon="🤖", layout="wide")
-st.title("🤖 MCP AI Agent")
-st.caption("A universal AI agent powered by real MCP tool-calling.")
+
+auth.init_users_table()
 
 
 async def fetch_available_tools():
-    """Connect to the MCP server briefly just to list its tools, for sidebar display."""
     server_params = StdioServerParameters(command=sys.executable, args=[SERVER_SCRIPT])
     async with Client(stdio_client(server_params)) as client:
         result = await client.list_tools()
         return [t.name for t in result.tools]
 
 
-# --- Sidebar ---
+# --- Authentication gate ---
+if "username" not in st.session_state:
+    st.session_state.username = None
+
+if st.session_state.username is None:
+    st.title("🤖 MCP AI Agent")
+    st.caption("Please log in or create an account to continue.")
+
+    tab_login, tab_register = st.tabs(["Log In", "Register"])
+
+    with tab_login:
+        login_username = st.text_input("Username", key="login_username")
+        login_password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Log In"):
+            if auth.verify_user(login_username, login_password):
+                st.session_state.username = login_username
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
+
+    with tab_register:
+        reg_username = st.text_input("Choose a username", key="reg_username")
+        reg_password = st.text_input("Choose a password", type="password", key="reg_password")
+        if st.button("Register"):
+            success, message = auth.register_user(reg_username, reg_password)
+            if success:
+                st.success(message + " You can now log in.")
+            else:
+                st.error(message)
+
+    st.stop()  # don't render anything below until logged in
+
+
+# --- Main app (only reached if logged in) ---
+st.title("🤖 MCP AI Agent")
+st.caption(f"Logged in as **{st.session_state.username}**")
+
+
 with st.sidebar:
     st.header("⚙️ Configuration")
 
@@ -53,12 +90,15 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
+    if st.button("🚪 Log Out"):
+        st.session_state.username = None
+        st.session_state.messages = []
+        st.rerun()
 
-# --- Chat state ---
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display past messages, including any tool calls made
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -68,7 +108,6 @@ for msg in st.session_state.messages:
                     st.markdown(f"**`{call['tool']}`**")
                     st.code(f"Arguments: {call['arguments']}\nResult: {call['result']}")
 
-# --- Handle new input ---
 user_input = st.chat_input("Ask me anything...")
 
 if user_input:
