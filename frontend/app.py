@@ -1,6 +1,7 @@
 """
 Streamlit chat interface for the MCP AI Agent.
-Now with login/registration, per-user sessions, and tool-usage visibility.
+Login/registration, per-user persistent sessions, rate limiting,
+and tool-usage visibility.
 """
 
 import asyncio
@@ -14,21 +15,17 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 load_dotenv()
 
-from mcp import Client, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from app.agent.agent import run_agent, SERVER_SCRIPT
+from app.mcp_client.persistent_client import run_agent_sync, list_tools_sync
 from app.database import auth
 
 st.set_page_config(page_title="MCP AI Agent", page_icon="🤖", layout="wide")
 
 auth.init_users_table()
+auth.init_chat_history_table()
+auth.init_rate_limit_table()
 
 
-async def fetch_available_tools():
-    server_params = StdioServerParameters(command=sys.executable, args=[SERVER_SCRIPT])
-    async with Client(stdio_client(server_params)) as client:
-        result = await client.list_tools()
-        return [t.name for t in result.tools]
+
 
 
 # --- Authentication gate ---
@@ -79,15 +76,15 @@ with st.sidebar:
     st.subheader("🛠️ Available Tools")
 
     if "available_tools" not in st.session_state:
-        with st.spinner("Loading tools..."):
-            st.session_state.available_tools = asyncio.run(fetch_available_tools())
-
+         with st.spinner("Loading tools..."):
+            st.session_state.available_tools = list_tools_sync()
     for tool_name in st.session_state.available_tools:
         st.markdown(f"- `{tool_name}`")
 
     st.divider()
     if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
+        auth.clear_chat_history(st.session_state.username)
         st.rerun()
 
     if st.button("🚪 Log Out"):
@@ -96,8 +93,9 @@ with st.sidebar:
         st.rerun()
 
 
+# --- Chat state: load persisted history on first load ---
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    st.session_state.messages = auth.load_chat_history(st.session_state.username)
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -108,16 +106,25 @@ for msg in st.session_state.messages:
                     st.markdown(f"**`{call['tool']}`**")
                     st.code(f"Arguments: {call['arguments']}\nResult: {call['result']}")
 
+# --- Handle new input ---
 user_input = st.chat_input("Ask me anything...")
 
 if user_input:
+    allowed, rate_limit_message = auth.check_and_record_rate_limit(
+    st.session_state.username, max_requests=15, window_minutes=5
+)
+
+    if not allowed:
+        st.error(rate_limit_message)
+        st.stop()
+
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            result = asyncio.run(run_agent(user_input))
+            result = run_agent_sync(user_input)
         st.markdown(result["answer"])
 
         if result["tool_calls"]:
@@ -132,4 +139,10 @@ if user_input:
             "content": result["answer"],
             "tool_calls": result["tool_calls"],
         }
+    )
+
+    # Persist both messages to the database
+    auth.save_message(st.session_state.username, "user", user_input)
+    auth.save_message(
+        st.session_state.username, "assistant", result["answer"], result["tool_calls"]
     )
