@@ -19,12 +19,16 @@ from mcp.client.stdio import stdio_client
 from app.llm.groq_provider import GroqProvider
 from app.llm.openrouter_provider import OpenRouterProvider
 from app.logger import get_logger
+from app.database import metrics as db_metrics
 
 logger = get_logger("agent")
 
 SERVER_SCRIPT = str(Path(__file__).resolve().parents[1] / "mcp_server" / "server.py")
 
 MAX_TOOL_ROUNDS = 10
+
+from app.database import metrics as db_metrics
+db_metrics.init_metrics_table()
 
 
 def get_llm_provider():
@@ -35,21 +39,21 @@ def get_llm_provider():
     return GroqProvider()
 
 
-async def run_agent(user_message: str, mcp_client=None) -> dict:
+async def run_agent(user_message: str, mcp_client=None, username: str = "anonymous") -> dict:
     """
     Runs one full agent turn. If mcp_client is provided, reuses that
     existing connection. Otherwise opens and closes its own short-lived
     connection (used by tests/scripts that don't manage a persistent one).
     """
     if mcp_client is not None:
-        return await _run_agent_loop(user_message, mcp_client)
+        return await _run_agent_loop(user_message, mcp_client, username)
 
     server_params = StdioServerParameters(command=sys.executable, args=[SERVER_SCRIPT])
     async with Client(stdio_client(server_params)) as mcp_client:
-        return await _run_agent_loop(user_message, mcp_client)
+        return await _run_agent_loop(user_message, mcp_client, username)
 
 
-async def _run_agent_loop(user_message: str, mcp_client) -> dict:
+async def _run_agent_loop(user_message: str, mcp_client, username: str = "anonymous") -> dict:
     provider_name = os.environ.get("LLM_PROVIDER", "groq").lower()
     logger.info(f"New request | provider={provider_name} | message={user_message!r}")
 
@@ -83,6 +87,7 @@ async def _run_agent_loop(user_message: str, mcp_client) -> dict:
                 f"Request complete | rounds={round_num} | tool_calls={len(tool_call_log)} "
                 f"| total_time={elapsed:.2f}s"
             )
+            db_metrics.record_request(username, elapsed, len(tool_call_log), provider_name, success=True)
             return {
                 "answer": decision["text"],
                 "tool_calls": tool_call_log,
@@ -126,6 +131,7 @@ async def _run_agent_loop(user_message: str, mcp_client) -> dict:
 
     elapsed = time.monotonic() - request_start
     logger.warning(f"Max tool rounds reached | tool_calls={len(tool_call_log)} | total_time={elapsed:.2f}s")
+    db_metrics.record_request(username, elapsed, len(tool_call_log), provider_name, success=False)
     return {
         "answer": "I wasn't able to complete this request within the allowed number of tool calls.",
         "tool_calls": tool_call_log,

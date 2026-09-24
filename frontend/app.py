@@ -1,10 +1,9 @@
 """
 Streamlit chat interface for the MCP AI Agent.
 Login/registration, per-user persistent sessions, rate limiting,
-and tool-usage visibility.
+caching (server-side), metrics dashboard, and tool-usage visibility.
 """
 
-import asyncio
 import os
 import sys
 from pathlib import Path
@@ -17,15 +16,14 @@ load_dotenv()
 
 from app.mcp_client.persistent_client import run_agent_sync, list_tools_sync
 from app.database import auth
+from app.database import metrics as db_metrics
 
 st.set_page_config(page_title="MCP AI Agent", page_icon="🤖", layout="wide")
 
 auth.init_users_table()
 auth.init_chat_history_table()
 auth.init_rate_limit_table()
-
-
-
+db_metrics.init_metrics_table()
 
 
 # --- Authentication gate ---
@@ -76,10 +74,20 @@ with st.sidebar:
     st.subheader("🛠️ Available Tools")
 
     if "available_tools" not in st.session_state:
-         with st.spinner("Loading tools..."):
+        with st.spinner("Loading tools..."):
             st.session_state.available_tools = list_tools_sync()
+
     for tool_name in st.session_state.available_tools:
         st.markdown(f"- `{tool_name}`")
+
+    st.divider()
+    st.subheader("📊 Metrics")
+    stats = db_metrics.get_summary_stats()
+    col1, col2 = st.columns(2)
+    col1.metric("Total Requests", stats["total_requests"])
+    col2.metric("Success Rate", f"{stats['success_rate']}%")
+    col1.metric("Avg Response Time", f"{stats['avg_response_time']}s")
+    col2.metric("Avg Tool Calls", stats["avg_tool_calls"])
 
     st.divider()
     if st.button("🗑️ Clear Chat"):
@@ -111,8 +119,8 @@ user_input = st.chat_input("Ask me anything...")
 
 if user_input:
     allowed, rate_limit_message = auth.check_and_record_rate_limit(
-    st.session_state.username, max_requests=15, window_minutes=5
-)
+        st.session_state.username, max_requests=15, window_minutes=5
+    )
 
     if not allowed:
         st.error(rate_limit_message)
@@ -124,7 +132,7 @@ if user_input:
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            result = run_agent_sync(user_input)
+            result = run_agent_sync(user_input, username=st.session_state.username)
         st.markdown(result["answer"])
 
         if result["tool_calls"]:
