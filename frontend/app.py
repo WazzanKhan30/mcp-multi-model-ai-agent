@@ -17,6 +17,7 @@ load_dotenv()
 from app.mcp_client.persistent_client import run_agent_sync, list_tools_sync
 from app.database import auth
 from app.database import metrics as db_metrics
+from app.database import queries as db_queries
 
 st.set_page_config(page_title="MCP AI Agent", page_icon="🤖", layout="wide")
 
@@ -24,6 +25,7 @@ auth.init_users_table()
 auth.init_chat_history_table()
 auth.init_rate_limit_table()
 db_metrics.init_metrics_table()
+db_queries.init_documents_table()
 
 
 # --- Authentication gate ---
@@ -70,6 +72,17 @@ with st.sidebar:
     provider = os.environ.get("LLM_PROVIDER", "groq")
     st.markdown(f"**Active LLM Provider:** `{provider}`")
 
+    st.divider()
+    st.subheader("📄 Knowledge Base")
+    with st.expander("➕ Add a document"):
+        doc_title = st.text_input("Title", key="doc_title")
+        doc_content = st.text_area("Content", key="doc_content", height=100)
+        if st.button("Add Document"):
+            if doc_title and doc_content:
+                db_queries.add_document(st.session_state.username, doc_title, doc_content)
+                st.success(f"Added '{doc_title}' to the knowledge base.")
+            else:
+                st.warning("Please provide both a title and content.")
     st.divider()
     st.subheader("🛠️ Available Tools")
 

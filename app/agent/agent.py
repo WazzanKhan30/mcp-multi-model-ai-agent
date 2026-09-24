@@ -72,7 +72,26 @@ async def _run_agent_loop(
 
         # Include recent conversation history (if provided) so the LLM has
     # continuity across turns, not just the current message in isolation.
-    messages = list(history) if history else []
+    SYSTEM_PROMPT = (
+        "You are a helpful AI agent with access to tools for calculations, weather, "
+        "GitHub search, a book database, web search, and a private document knowledge "
+        "base (search_documents). "
+        "IMPORTANT RULES: "
+        "1. For ANY arithmetic or calculation, no matter how simple, ALWAYS use the "
+        "calculator tools (add, subtract, multiply, divide, average, percentage_of, "
+        "what_percentage) rather than computing it yourself - this ensures accuracy "
+        "and verifiability. "
+        "2. For any question that could relate to specific facts, policies, or "
+        "information the user or their organization has added, ALWAYS call "
+        "search_documents first before answering from your own general knowledge. "
+        "Only skip tools for pure conversation unrelated to any tool's purpose "
+        "(e.g. greetings, opinions)."
+    )
+
+    # Include recent conversation history (if provided) so the LLM has
+    # continuity across turns, not just the current message in isolation.
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.extend(history if history else [])
     messages.append({"role": "user", "content": user_message})
 
     for round_num in range(MAX_TOOL_ROUNDS):

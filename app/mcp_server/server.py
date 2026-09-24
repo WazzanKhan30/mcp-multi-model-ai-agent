@@ -133,6 +133,13 @@ def search_web(query: str, max_results: int = 5) -> list[dict]:
     """Search the web for current information on a topic. Returns titles, URLs, and content snippets."""
     return web_search.search_web(query, max_results)
 
+@mcp.tool()
+def search_documents(query: str, limit: int = 3) -> list[dict]:
+    """Search the user's private document knowledge base (policies, notes, uploaded
+    documents). Use this FIRST for any question that might be about specific,
+    private, or organization-specific information not in your general knowledge."""
+    return db_queries.search_documents(query, limit)
+
 
 if __name__ == "__main__":
     mcp.run()
