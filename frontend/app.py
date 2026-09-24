@@ -18,6 +18,7 @@ from app.mcp_client.persistent_client import run_agent_sync, list_tools_sync
 from app.database import auth
 from app.database import metrics as db_metrics
 from app.database import queries as db_queries
+from app.database.setup_db import create_and_seed as seed_books
 
 st.set_page_config(page_title="MCP AI Agent", page_icon="🤖", layout="wide")
 
@@ -26,6 +27,7 @@ auth.init_chat_history_table()
 auth.init_rate_limit_table()
 db_metrics.init_metrics_table()
 db_queries.init_documents_table()
+seed_books()  # safe to call every startup - only inserts if the books table is empty
 
 
 # --- Authentication gate ---
