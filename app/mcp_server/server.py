@@ -16,6 +16,7 @@ load_dotenv()
 
 from mcp.server import MCPServer
 from app.mcp_server.tools import calculator, weather, github, web_search
+from app.mcp_server import cache
 from app.database import queries as db_queries
 
 # Create the server instance. The name shows up in MCP clients/inspectors.
@@ -77,13 +78,25 @@ def average(numbers: list[float]) -> float:
 @mcp.tool()
 def get_weather(city: str) -> dict:
     """Get the current weather (temperature, wind, condition) for a given city."""
-    return weather.get_current_weather(city)
+    args = {"city": city}
+    cached = cache.get_cached("get_weather", args)
+    if cached is not None:
+        return cached
+    result = weather.get_current_weather(city)
+    cache.set_cached("get_weather", args, result)
+    return result
 
 
 @mcp.tool()
 def search_github_repos(query: str, limit: int = 5) -> list[dict]:
     """Search GitHub repositories by keyword, sorted by stars (most popular first)."""
-    return github.search_repositories(query, limit)
+    args = {"query": query, "limit": limit}
+    cached = cache.get_cached("search_github_repos", args)
+    if cached is not None:
+        return cached
+    result = github.search_repositories(query, limit)
+    cache.set_cached("search_github_repos", args, result)
+    return result
 
 
 @mcp.tool()
