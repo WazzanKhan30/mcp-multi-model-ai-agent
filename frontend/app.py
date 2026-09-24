@@ -132,7 +132,16 @@ if user_input:
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            result = run_agent_sync(user_input, username=st.session_state.username)
+                        # Build simple history from the last few turns (role + content only,
+            # excluding tool_calls metadata which the LLM API doesn't need)
+            recent_history = [
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages[-10:]  # last 10 messages, keeps context bounded
+                if m["role"] in ("user", "assistant")
+            ]
+            result = run_agent_sync(
+                user_input, username=st.session_state.username, history=recent_history
+            )
         st.markdown(result["answer"])
 
         if result["tool_calls"]:

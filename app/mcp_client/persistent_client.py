@@ -73,14 +73,13 @@ def shutdown():
     _client_cm = None
 
 
-def run_agent_sync(user_message: str, username: str = "anonymous") -> dict:
+def run_agent_sync(user_message: str, username: str = "anonymous", history: list = None) -> dict:
     """Run one agent turn using the persistent MCP connection. Blocks until done."""
     _ensure_started()
     future = asyncio.run_coroutine_threadsafe(
-        run_agent(user_message, mcp_client=_client, username=username), _loop
+        run_agent(user_message, mcp_client=_client, username=username, history=history), _loop
     )
     return future.result()
-
 
 def list_tools_sync() -> list[str]:
     """List available tool names using the persistent MCP connection."""

@@ -39,21 +39,28 @@ def get_llm_provider():
     return GroqProvider()
 
 
-async def run_agent(user_message: str, mcp_client=None, username: str = "anonymous") -> dict:
+async def run_agent(
+    user_message: str, mcp_client=None, username: str = "anonymous", history: list = None
+) -> dict:
     """
     Runs one full agent turn. If mcp_client is provided, reuses that
     existing connection. Otherwise opens and closes its own short-lived
     connection (used by tests/scripts that don't manage a persistent one).
+
+    `history`: optional list of prior {"role": ..., "content": ...} messages
+    from this conversation, so the LLM has continuity across turns.
     """
     if mcp_client is not None:
-        return await _run_agent_loop(user_message, mcp_client, username)
+        return await _run_agent_loop(user_message, mcp_client, username, history)
 
     server_params = StdioServerParameters(command=sys.executable, args=[SERVER_SCRIPT])
     async with Client(stdio_client(server_params)) as mcp_client:
-        return await _run_agent_loop(user_message, mcp_client, username)
+        return await _run_agent_loop(user_message, mcp_client, username, history)
 
 
-async def _run_agent_loop(user_message: str, mcp_client, username: str = "anonymous") -> dict:
+async def _run_agent_loop(
+    user_message: str, mcp_client, username: str = "anonymous", history: list = None
+) -> dict:
     provider_name = os.environ.get("LLM_PROVIDER", "groq").lower()
     logger.info(f"New request | provider={provider_name} | message={user_message!r}")
 
@@ -63,7 +70,10 @@ async def _run_agent_loop(user_message: str, mcp_client, username: str = "anonym
     tools_result = await mcp_client.list_tools()
     provider = get_llm_provider()
 
-    messages = [{"role": "user", "content": user_message}]
+        # Include recent conversation history (if provided) so the LLM has
+    # continuity across turns, not just the current message in isolation.
+    messages = list(history) if history else []
+    messages.append({"role": "user", "content": user_message})
 
     for round_num in range(MAX_TOOL_ROUNDS):
         try:
